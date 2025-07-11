@@ -10,7 +10,6 @@
 
 /* Class entries */
 zend_class_entry *llhttp_parser_ce;
-zend_class_entry *llhttp_events_ce;
 zend_class_entry *llhttp_error_codes_ce;
 zend_class_entry *llhttp_exception_ce;
 
@@ -33,12 +32,8 @@ static zend_object *llhttp_parser_object_create(zend_class_entry *ce) {
     
     /* Initialize parser object */
     intern->type = LLHTTP_TYPE_REQUEST;
-    intern->paused = 0;
+    intern->state = LLHTTP_STATE_INIT;
     intern->finished = 0;
-    
-    /* Initialize callbacks hash table */
-    ALLOC_HASHTABLE(intern->callbacks);
-    zend_hash_init(intern->callbacks, 8, NULL, ZVAL_PTR_DTOR, 0);
     
     /* Initialize headers hash table */
     ALLOC_HASHTABLE(intern->headers);
@@ -46,6 +41,8 @@ static zend_object *llhttp_parser_object_create(zend_class_entry *ce) {
     
     intern->current_header_field = NULL;
     intern->current_header_value = NULL;
+    intern->url = NULL;
+    intern->body = NULL;
     
     intern->std.handlers = &llhttp_parser_object_handlers;
     
@@ -54,12 +51,6 @@ static zend_object *llhttp_parser_object_create(zend_class_entry *ce) {
 
 static void llhttp_parser_object_free(zend_object *obj) {
     llhttp_parser_object *intern = llhttp_parser_object_from_zend_object(obj);
-    
-    /* Free callbacks hash table */
-    if (intern->callbacks) {
-        zend_hash_destroy(intern->callbacks);
-        FREE_HASHTABLE(intern->callbacks);
-    }
     
     /* Free headers hash table */
     if (intern->headers) {
@@ -73,6 +64,14 @@ static void llhttp_parser_object_free(zend_object *obj) {
     }
     if (intern->current_header_value) {
         zend_string_release(intern->current_header_value);
+    }
+    
+    /* Free data strings */
+    if (intern->url) {
+        zend_string_release(intern->url);
+    }
+    if (intern->body) {
+        zend_string_release(intern->body);
     }
     
     zend_object_std_dtor(obj);
@@ -115,48 +114,9 @@ PHP_METHOD(LlhttpParser, __construct) {
     intern->parser.data = intern;
 }
 
-/* on(string $event, callable $callback): Parser */
-PHP_METHOD(LlhttpParser, on) {
-    zend_string *event;
-    zval *callback;
-    
-    ZEND_PARSE_PARAMETERS_START(2, 2)
-        Z_PARAM_STR(event)
-        Z_PARAM_ZVAL(callback)
-    ZEND_PARSE_PARAMETERS_END();
-    
-    if (!zend_is_callable(callback, 0, NULL)) {
-        zend_throw_exception(llhttp_exception_ce, "Second parameter must be a valid callback", 0);
-        RETURN_THROWS();
-    }
-    
-    llhttp_parser_object *intern = llhttp_parser_object_from_zend_object(Z_OBJ_P(ZEND_THIS));
-    
-    /* Store callback in hash table */
-    Z_TRY_ADDREF_P(callback);
-    zend_hash_update(intern->callbacks, event, callback);
-    
-    RETURN_OBJ_COPY(Z_OBJ_P(ZEND_THIS));
-}
 
-/* off(string $event): Parser */
-PHP_METHOD(LlhttpParser, off) {
-    zend_string *event;
-    
-    ZEND_PARSE_PARAMETERS_START(1, 1)
-        Z_PARAM_STR(event)
-    ZEND_PARSE_PARAMETERS_END();
-    
-    llhttp_parser_object *intern = llhttp_parser_object_from_zend_object(Z_OBJ_P(ZEND_THIS));
-    
-    /* Remove callback from hash table */
-    zend_hash_del(intern->callbacks, event);
-    
-    RETURN_OBJ_COPY(Z_OBJ_P(ZEND_THIS));
-}
-
-/* execute(string $data): void */
-PHP_METHOD(LlhttpParser, execute) {
+/* parse(string $data): void */
+PHP_METHOD(LlhttpParser, parse) {
     zend_string *data;
     
     ZEND_PARSE_PARAMETERS_START(1, 1)
@@ -170,24 +130,24 @@ PHP_METHOD(LlhttpParser, execute) {
         RETURN_THROWS();
     }
     
+    /* Set parsing state */
+    intern->state = LLHTTP_STATE_PARSING;
+    
     /* Execute parser */
     llhttp_errno_t err = llhttp_execute(&intern->parser, ZSTR_VAL(data), ZSTR_LEN(data));
     
-    if (err != HPE_OK && err != HPE_PAUSED) {
+    if (err != HPE_OK) {
+        intern->state = LLHTTP_STATE_ERROR;
         const char *error_reason = llhttp_get_error_reason(&intern->parser);
         char error_msg[256];
         snprintf(error_msg, sizeof(error_msg), "Parse error: %s", error_reason ? error_reason : "Unknown error");
         zend_throw_exception(llhttp_exception_ce, error_msg, err);
         RETURN_THROWS();
     }
-    
-    if (err == HPE_PAUSED) {
-        intern->paused = 1;
-    }
 }
 
-/* finish(): void */
-PHP_METHOD(LlhttpParser, finish) {
+/* parseComplete(): void */
+PHP_METHOD(LlhttpParser, parseComplete) {
     ZEND_PARSE_PARAMETERS_NONE();
     
     llhttp_parser_object *intern = llhttp_parser_object_from_zend_object(Z_OBJ_P(ZEND_THIS));
@@ -199,35 +159,16 @@ PHP_METHOD(LlhttpParser, finish) {
     llhttp_errno_t err = llhttp_finish(&intern->parser);
     
     if (err != HPE_OK) {
+        intern->state = LLHTTP_STATE_ERROR;
         const char *error_reason = llhttp_get_error_reason(&intern->parser);
         char error_msg[256];
-        snprintf(error_msg, sizeof(error_msg), "Finish error: %s", error_reason ? error_reason : "Unknown error");
+        snprintf(error_msg, sizeof(error_msg), "Parse completion error: %s", error_reason ? error_reason : "Unknown error");
         zend_throw_exception(llhttp_exception_ce, error_msg, err);
         RETURN_THROWS();
     }
     
     intern->finished = 1;
-}
-
-/* pause(): void */
-PHP_METHOD(LlhttpParser, pause) {
-    ZEND_PARSE_PARAMETERS_NONE();
-    
-    llhttp_parser_object *intern = llhttp_parser_object_from_zend_object(Z_OBJ_P(ZEND_THIS));
-    intern->paused = 1;
-    llhttp_pause(&intern->parser);
-}
-
-/* resume(): void */
-PHP_METHOD(LlhttpParser, resume) {
-    ZEND_PARSE_PARAMETERS_NONE();
-    
-    llhttp_parser_object *intern = llhttp_parser_object_from_zend_object(Z_OBJ_P(ZEND_THIS));
-    
-    if (intern->paused) {
-        llhttp_resume(&intern->parser);
-        intern->paused = 0;
-    }
+    intern->state = LLHTTP_STATE_COMPLETE;
 }
 
 /* reset(): void */
@@ -238,7 +179,7 @@ PHP_METHOD(LlhttpParser, reset) {
     
     /* Reset parser state */
     llhttp_reset(&intern->parser);
-    intern->paused = 0;
+    intern->state = LLHTTP_STATE_INIT;
     intern->finished = 0;
     
     /* Clear headers */
@@ -253,22 +194,32 @@ PHP_METHOD(LlhttpParser, reset) {
         zend_string_release(intern->current_header_value);
         intern->current_header_value = NULL;
     }
+    
+    /* Clear data strings */
+    if (intern->url) {
+        zend_string_release(intern->url);
+        intern->url = NULL;
+    }
+    if (intern->body) {
+        zend_string_release(intern->body);
+        intern->body = NULL;
+    }
 }
 
-/* isPaused(): bool */
-PHP_METHOD(LlhttpParser, isPaused) {
+/* isComplete(): bool */
+PHP_METHOD(LlhttpParser, isComplete) {
     ZEND_PARSE_PARAMETERS_NONE();
     
     llhttp_parser_object *intern = llhttp_parser_object_from_zend_object(Z_OBJ_P(ZEND_THIS));
-    RETURN_BOOL(intern->paused);
+    RETURN_BOOL(intern->state == LLHTTP_STATE_COMPLETE);
 }
 
-/* getType(): int */
-PHP_METHOD(LlhttpParser, getType) {
+/* getState(): int */
+PHP_METHOD(LlhttpParser, getState) {
     ZEND_PARSE_PARAMETERS_NONE();
     
     llhttp_parser_object *intern = llhttp_parser_object_from_zend_object(Z_OBJ_P(ZEND_THIS));
-    RETURN_LONG(intern->type);
+    RETURN_LONG(intern->state);
 }
 
 /* getHttpMajor(): int */
@@ -349,31 +300,108 @@ PHP_METHOD(LlhttpParser, getHeaders) {
     }
 }
 
+/* getHeader(string $name): ?string */
+PHP_METHOD(LlhttpParser, getHeader) {
+    zend_string *name;
+    
+    ZEND_PARSE_PARAMETERS_START(1, 1)
+        Z_PARAM_STR(name)
+    ZEND_PARSE_PARAMETERS_END();
+    
+    llhttp_parser_object *intern = llhttp_parser_object_from_zend_object(Z_OBJ_P(ZEND_THIS));
+    
+    if (!intern->headers) {
+        RETURN_NULL();
+    }
+    
+    /* Convert header name to lowercase for case-insensitive lookup */
+    zend_string *lowercase_name = zend_string_tolower(name);
+    zval *header_val = zend_hash_find(intern->headers, lowercase_name);
+    zend_string_release(lowercase_name);
+    
+    if (header_val && Z_TYPE_P(header_val) == IS_STRING) {
+        RETURN_STR_COPY(Z_STR_P(header_val));
+    }
+    
+    RETURN_NULL();
+}
+
+/* getUrl(): string */
+PHP_METHOD(LlhttpParser, getUrl) {
+    ZEND_PARSE_PARAMETERS_NONE();
+    
+    llhttp_parser_object *intern = llhttp_parser_object_from_zend_object(Z_OBJ_P(ZEND_THIS));
+    
+    if (intern->url) {
+        RETURN_STR_COPY(intern->url);
+    }
+    
+    RETURN_EMPTY_STRING();
+}
+
+/* getBody(): string */
+PHP_METHOD(LlhttpParser, getBody) {
+    ZEND_PARSE_PARAMETERS_NONE();
+    
+    llhttp_parser_object *intern = llhttp_parser_object_from_zend_object(Z_OBJ_P(ZEND_THIS));
+    
+    if (intern->body) {
+        RETURN_STR_COPY(intern->body);
+    }
+    
+    RETURN_EMPTY_STRING();
+}
+
+/* Helper functions */
+void llhttp_append_url(llhttp_parser_object *parser_obj, const char *at, size_t length) {
+    if (length == 0) return;
+    
+    if (parser_obj->url == NULL) {
+        parser_obj->url = zend_string_init(at, length, 0);
+    } else {
+        size_t old_len = ZSTR_LEN(parser_obj->url);
+        parser_obj->url = zend_string_extend(parser_obj->url, old_len + length, 0);
+        memcpy(ZSTR_VAL(parser_obj->url) + old_len, at, length);
+        ZSTR_VAL(parser_obj->url)[old_len + length] = '\0';
+    }
+}
+
+void llhttp_append_body(llhttp_parser_object *parser_obj, const char *at, size_t length) {
+    if (length == 0) return;
+    
+    if (parser_obj->body == NULL) {
+        parser_obj->body = zend_string_init(at, length, 0);
+    } else {
+        size_t old_len = ZSTR_LEN(parser_obj->body);
+        parser_obj->body = zend_string_extend(parser_obj->body, old_len + length, 0);
+        memcpy(ZSTR_VAL(parser_obj->body) + old_len, at, length);
+        ZSTR_VAL(parser_obj->body)[old_len + length] = '\0';
+    }
+}
+
 /* Method entries for Parser class */
 const zend_function_entry llhttp_parser_methods[] = {
     PHP_ME(LlhttpParser, __construct,       NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, on,                NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, off,               NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, execute,           NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, finish,            NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, pause,             NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, resume,            NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, parse,             NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, parseComplete,     NULL, ZEND_ACC_PUBLIC)
     PHP_ME(LlhttpParser, reset,             NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, isPaused,          NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, getType,           NULL, ZEND_ACC_PUBLIC)
     PHP_ME(LlhttpParser, getHttpMajor,      NULL, ZEND_ACC_PUBLIC)
     PHP_ME(LlhttpParser, getHttpMinor,      NULL, ZEND_ACC_PUBLIC)
     PHP_ME(LlhttpParser, getMethod,         NULL, ZEND_ACC_PUBLIC)
     PHP_ME(LlhttpParser, getMethodName,     NULL, ZEND_ACC_PUBLIC)
     PHP_ME(LlhttpParser, getStatusCode,     NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getUrl,            NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getHeaders,        NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getHeader,         NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getBody,           NULL, ZEND_ACC_PUBLIC)
     PHP_ME(LlhttpParser, shouldKeepAlive,   NULL, ZEND_ACC_PUBLIC)
     PHP_ME(LlhttpParser, messageNeedsEof,   NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, getHeaders,        NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, isComplete,        NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getState,          NULL, ZEND_ACC_PUBLIC)
     PHP_FE_END
 };
 
 /* External declarations for method entries */
-extern const zend_function_entry llhttp_events_methods[];
 extern const zend_function_entry llhttp_error_codes_methods[];
 
 /* Module initialization */
@@ -394,19 +422,11 @@ PHP_MINIT_FUNCTION(llhttp) {
     zend_declare_class_constant_long(llhttp_parser_ce, "TYPE_REQUEST", sizeof("TYPE_REQUEST")-1, LLHTTP_TYPE_REQUEST);
     zend_declare_class_constant_long(llhttp_parser_ce, "TYPE_RESPONSE", sizeof("TYPE_RESPONSE")-1, LLHTTP_TYPE_RESPONSE);
     
-    /* Register Events class */
-    INIT_CLASS_ENTRY(ce, "Llhttp\\Events", llhttp_events_methods);
-    llhttp_events_ce = zend_register_internal_class(&ce);
-    
-    /* Register event constants */
-    zend_declare_class_constant_string(llhttp_events_ce, "MESSAGE_BEGIN", sizeof("MESSAGE_BEGIN")-1, LLHTTP_EVENT_MESSAGE_BEGIN);
-    zend_declare_class_constant_string(llhttp_events_ce, "URL", sizeof("URL")-1, LLHTTP_EVENT_URL);
-    zend_declare_class_constant_string(llhttp_events_ce, "STATUS", sizeof("STATUS")-1, LLHTTP_EVENT_STATUS);
-    zend_declare_class_constant_string(llhttp_events_ce, "HEADER_FIELD", sizeof("HEADER_FIELD")-1, LLHTTP_EVENT_HEADER_FIELD);
-    zend_declare_class_constant_string(llhttp_events_ce, "HEADER_VALUE", sizeof("HEADER_VALUE")-1, LLHTTP_EVENT_HEADER_VALUE);
-    zend_declare_class_constant_string(llhttp_events_ce, "HEADERS_COMPLETE", sizeof("HEADERS_COMPLETE")-1, LLHTTP_EVENT_HEADERS_COMPLETE);
-    zend_declare_class_constant_string(llhttp_events_ce, "BODY", sizeof("BODY")-1, LLHTTP_EVENT_BODY);
-    zend_declare_class_constant_string(llhttp_events_ce, "MESSAGE_COMPLETE", sizeof("MESSAGE_COMPLETE")-1, LLHTTP_EVENT_MESSAGE_COMPLETE);
+    /* Add state constants to Parser class */
+    zend_declare_class_constant_long(llhttp_parser_ce, "STATE_INIT", sizeof("STATE_INIT")-1, LLHTTP_STATE_INIT);
+    zend_declare_class_constant_long(llhttp_parser_ce, "STATE_PARSING", sizeof("STATE_PARSING")-1, LLHTTP_STATE_PARSING);
+    zend_declare_class_constant_long(llhttp_parser_ce, "STATE_COMPLETE", sizeof("STATE_COMPLETE")-1, LLHTTP_STATE_COMPLETE);
+    zend_declare_class_constant_long(llhttp_parser_ce, "STATE_ERROR", sizeof("STATE_ERROR")-1, LLHTTP_STATE_ERROR);
     
     /* Register ErrorCodes class */
     INIT_CLASS_ENTRY(ce, "Llhttp\\ErrorCodes", llhttp_error_codes_methods);

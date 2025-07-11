@@ -38,16 +38,17 @@ struct _llhttp_parser_object {
     /* Parser type (request/response) */
     int type;
     
-    /* Callback storage */
-    HashTable *callbacks;
-    
     /* Header collection */
     HashTable *headers;
     zend_string *current_header_field;
     zend_string *current_header_value;
     
+    /* Data storage */
+    zend_string *url;
+    zend_string *body;
+    
     /* State management */
-    zend_bool paused;
+    int state;
     zend_bool finished;
 };
 
@@ -60,7 +61,6 @@ struct _llhttp_callback_data {
 
 /* Class entry declarations */
 extern zend_class_entry *llhttp_parser_ce;
-extern zend_class_entry *llhttp_events_ce;
 extern zend_class_entry *llhttp_error_codes_ce;
 extern zend_class_entry *llhttp_exception_ce;
 
@@ -71,15 +71,11 @@ extern zend_object_handlers llhttp_parser_object_handlers;
 #define LLHTTP_TYPE_REQUEST  1  /* HTTP_REQUEST */
 #define LLHTTP_TYPE_RESPONSE 2  /* HTTP_RESPONSE */
 
-/* Event name constants */
-#define LLHTTP_EVENT_MESSAGE_BEGIN     "messageBegin"
-#define LLHTTP_EVENT_URL               "url"
-#define LLHTTP_EVENT_STATUS            "status"
-#define LLHTTP_EVENT_HEADER_FIELD      "headerField"
-#define LLHTTP_EVENT_HEADER_VALUE      "headerValue"
-#define LLHTTP_EVENT_HEADERS_COMPLETE  "headersComplete"
-#define LLHTTP_EVENT_BODY              "body"
-#define LLHTTP_EVENT_MESSAGE_COMPLETE  "messageComplete"
+/* Parser state constants */
+#define LLHTTP_STATE_INIT        0
+#define LLHTTP_STATE_PARSING     1
+#define LLHTTP_STATE_COMPLETE    2
+#define LLHTTP_STATE_ERROR       3
 
 /* Function declarations */
 
@@ -90,27 +86,22 @@ PHP_MINFO_FUNCTION(llhttp);
 
 /* Parser class methods */
 PHP_METHOD(LlhttpParser, __construct);
-PHP_METHOD(LlhttpParser, on);
-PHP_METHOD(LlhttpParser, off);
-PHP_METHOD(LlhttpParser, execute);
-PHP_METHOD(LlhttpParser, finish);
-PHP_METHOD(LlhttpParser, pause);
-PHP_METHOD(LlhttpParser, resume);
+PHP_METHOD(LlhttpParser, parse);
+PHP_METHOD(LlhttpParser, parseComplete);
 PHP_METHOD(LlhttpParser, reset);
-PHP_METHOD(LlhttpParser, isPaused);
-PHP_METHOD(LlhttpParser, getType);
 PHP_METHOD(LlhttpParser, getHttpMajor);
 PHP_METHOD(LlhttpParser, getHttpMinor);
 PHP_METHOD(LlhttpParser, getMethod);
 PHP_METHOD(LlhttpParser, getMethodName);
 PHP_METHOD(LlhttpParser, getStatusCode);
+PHP_METHOD(LlhttpParser, getUrl);
+PHP_METHOD(LlhttpParser, getHeaders);
+PHP_METHOD(LlhttpParser, getHeader);
+PHP_METHOD(LlhttpParser, getBody);
 PHP_METHOD(LlhttpParser, shouldKeepAlive);
 PHP_METHOD(LlhttpParser, messageNeedsEof);
-PHP_METHOD(LlhttpParser, getHeaders);
-
-/* Events class methods */
-PHP_METHOD(LlhttpEvents, getAll);
-PHP_METHOD(LlhttpEvents, isValid);
+PHP_METHOD(LlhttpParser, isComplete);
+PHP_METHOD(LlhttpParser, getState);
 
 /* ErrorCodes class methods */
 PHP_METHOD(LlhttpErrorCodes, getMessage);
@@ -128,9 +119,10 @@ int llhttp_on_body_cb(llhttp_t *parser, const char *at, size_t length);
 int llhttp_on_message_complete_cb(llhttp_t *parser);
 
 /* Helper functions */
-void llhttp_call_user_callback(llhttp_parser_object *parser_obj, const char *event_name, zval *args, int arg_count);
 void llhttp_add_header(llhttp_parser_object *parser_obj, zend_string *field, zend_string *value);
 void llhttp_finalize_current_header(llhttp_parser_object *parser_obj);
+void llhttp_append_url(llhttp_parser_object *parser_obj, const char *at, size_t length);
+void llhttp_append_body(llhttp_parser_object *parser_obj, const char *at, size_t length);
 
 /* Error handling */
 void llhttp_throw_exception(int llhttp_errno, const char *message);

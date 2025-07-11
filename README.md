@@ -1,16 +1,16 @@
 # PHP llhttp Extension
 
-A PHP extension that provides high-performance HTTP parsing using the [llhttp](https://github.com/nodejs/llhttp) C library. This extension offers an event-driven, object-oriented API for parsing HTTP requests and responses.
+A PHP extension that provides high-performance HTTP parsing using the [llhttp](https://github.com/nodejs/llhttp) C library. This extension offers a simple, direct API for parsing HTTP requests and responses with excellent performance.
 
 ## Features
 
 - **High Performance**: Built on the fast llhttp C library used by Node.js
-- **Event-Driven**: Asynchronous parsing with customizable callbacks
-- **Object-Oriented API**: Clean, modern PHP interface
+- **Simple API**: Clean, direct method calls without complex event systems
+- **Object-Oriented**: Modern PHP interface with intuitive methods
 - **Request & Response Parsing**: Support for both HTTP requests and responses
-- **State Management**: Pause, resume, and reset parsing operations
-- **Header Processing**: Extract and process HTTP headers
+- **Built-in Data Collection**: Automatic header, URL, and body collection
 - **Memory Efficient**: Streaming parser that handles large HTTP messages
+- **State Management**: Reset and reuse parsers efficiently
 
 ## Installation
 
@@ -48,58 +48,36 @@ echo "extension=llhttp.so" >> /etc/php/8.x/cli/php.ini
 <?php
 
 use Llhttp\Parser;
-use Llhttp\Events;
 
 // Create a request parser
 $parser = new Parser(Parser::TYPE_REQUEST);
 
-// Option 1: Using getHeaders() method (automatic collection)
-$request = "GET /api/users HTTP/1.1\r\n" .
+$request = "GET /api/users?page=1 HTTP/1.1\r\n" .
            "Host: example.com\r\n" .
            "Content-Type: application/json\r\n" .
-           "Authorization: Bearer token123\r\n\r\n";
+           "Authorization: Bearer token123\r\n" .
+           "\r\n" .
+           '{"data": "request body"}';
 
-$parser->execute($request);
-$parser->finish();
+// Parse the request
+$parser->parse($request);
+$parser->parseComplete();
 
 // Get parsed information
 echo "Method: " . $parser->getMethodName() . "\n";
+echo "URL: " . $parser->getUrl() . "\n";
 echo "HTTP Version: " . $parser->getHttpMajor() . "." . $parser->getHttpMinor() . "\n";
+echo "Body: " . $parser->getBody() . "\n";
 
+// Get specific header
+$host = $parser->getHeader('Host');
+echo "Host: $host\n";
+
+// Get all headers
 $headers = $parser->getHeaders();
 foreach ($headers as $name => $value) {
     echo "Header: $name = $value\n";
 }
-```
-
-### Event-Driven Header Collection
-
-```php
-<?php
-
-// Option 2: Using events for custom processing
-$parser = new Parser(Parser::TYPE_REQUEST);
-
-$headers = [];
-$currentField = null;
-
-$parser->on(Events::HEADER_FIELD, function($field) use (&$currentField) {
-    $currentField = $field;
-});
-
-$parser->on(Events::HEADER_VALUE, function($value) use (&$headers, &$currentField) {
-    if ($currentField !== null) {
-        $headers[strtolower($currentField)] = $value;
-        $currentField = null;
-    }
-});
-
-$parser->on(Events::BODY, function($data) {
-    echo "Body chunk: $data\n";
-});
-
-$parser->execute($request);
-$parser->finish();
 ```
 
 ### HTTP Response Parsing
@@ -108,64 +86,84 @@ $parser->finish();
 <?php
 
 use Llhttp\Parser;
-use Llhttp\Events;
 
 // Create a response parser
 $parser = new Parser(Parser::TYPE_RESPONSE);
 
-$body = '';
-
-$parser->on(Events::STATUS, function($status) {
-    echo "Status text: $status\n";
-});
-
-$parser->on(Events::BODY, function($chunk) use (&$body) {
-    $body .= $chunk;
-});
-
-// Parse HTTP response
 $response = "HTTP/1.1 200 OK\r\n" .
             "Content-Type: application/json\r\n" .
             "Content-Length: 27\r\n" .
-            "Server: nginx/1.20.1\r\n\r\n" .
+            "Server: nginx/1.20.1\r\n" .
+            "\r\n" .
             '{"message": "Hello, World!"}';
 
-$parser->execute($response);
-$parser->finish();
+// Parse the response
+$parser->parse($response);
+$parser->parseComplete();
 
 // Get response information
 echo "Status Code: " . $parser->getStatusCode() . "\n";
 echo "HTTP Version: " . $parser->getHttpMajor() . "." . $parser->getHttpMinor() . "\n";
+echo "Server: " . $parser->getHeader('Server') . "\n";
+echo "Content-Type: " . $parser->getHeader('Content-Type') . "\n";
+echo "Body: " . $parser->getBody() . "\n";
 echo "Keep-Alive: " . ($parser->shouldKeepAlive() ? 'Yes' : 'No') . "\n";
-
-$headers = $parser->getHeaders();
-foreach ($headers as $name => $value) {
-    echo "Header: $name = $value\n";
-}
-
-echo "Body: $body\n";
 ```
 
-### State Management
+### Streaming Parsing
 
 ```php
 <?php
 
+use Llhttp\Parser;
+
 $parser = new Parser(Parser::TYPE_REQUEST);
 
-// Pause parsing
-$parser->pause();
+// Parse data in chunks
+$chunks = [
+    "GET /path HTTP/1.1\r\n",
+    "Host: example.com\r\n",
+    "Content-Length: 13\r\n",
+    "\r\n",
+    '{"test": true}'
+];
 
-// Check if paused
-if ($parser->isPaused()) {
-    echo "Parser is paused\n";
+foreach ($chunks as $chunk) {
+    $parser->parse($chunk);
+    
+    // Check if parsing is complete
+    if ($parser->isComplete()) {
+        break;
+    }
 }
 
-// Resume parsing
-$parser->resume();
+echo "URL: " . $parser->getUrl() . "\n";
+echo "Body: " . $parser->getBody() . "\n";
+```
+
+### Parser State Management
+
+```php
+<?php
+
+use Llhttp\Parser;
+
+$parser = new Parser(Parser::TYPE_REQUEST);
+
+// Parse some data
+$parser->parse("GET /test HTTP/1.1\r\nHost: example.com\r\n\r\n");
+
+// Check parser state
+echo "State: " . $parser->getState() . "\n";
+echo "Complete: " . ($parser->isComplete() ? 'Yes' : 'No') . "\n";
 
 // Reset parser for reuse
 $parser->reset();
+echo "State after reset: " . $parser->getState() . "\n";
+
+// Parse new data
+$parser->parse("POST /api HTTP/1.1\r\n\r\n");
+echo "New method: " . $parser->getMethodName() . "\n";
 ```
 
 ## API Reference
@@ -177,79 +175,92 @@ $parser->reset();
   - `Parser::TYPE_REQUEST` - Parse HTTP requests
   - `Parser::TYPE_RESPONSE` - Parse HTTP responses
 
-#### Event Management
-- `on(string $event, callable $callback): Parser` - Register event handler
-- `off(string $event): Parser` - Remove event handler
-
 #### Parsing Methods
-- `execute(string $data): void` - Parse HTTP data
-- `finish(): void` - Complete parsing
-- `pause(): void` - Pause parsing
-- `resume(): void` - Resume parsing
-- `reset(): void` - Reset parser state
+- `parse(string $data): void` - Parse HTTP data chunk
+- `parseComplete(): void` - Signal end of data (optional)
+- `reset(): void` - Reset parser state for reuse
 
-#### Information Methods
-- `getType(): int` - Get parser type
+#### HTTP Information Methods
 - `getHttpMajor(): int` - Get HTTP major version
 - `getHttpMinor(): int` - Get HTTP minor version
-- `getMethod(): int` - Get HTTP method (for requests)
-- `getMethodName(): string` - Get HTTP method name
+- `getMethod(): int` - Get HTTP method code (for requests)
+- `getMethodName(): string` - Get HTTP method name (for requests)
 - `getStatusCode(): int` - Get status code (for responses)
+- `getUrl(): string` - Get request URL (for requests)
 - `shouldKeepAlive(): bool` - Check if connection should be kept alive
 - `messageNeedsEof(): bool` - Check if message needs EOF
-- `getHeaders(): array` - Get parsed headers
-- `isPaused(): bool` - Check if parser is paused
 
-### Events Class
+#### Data Access Methods
+- `getHeaders(): array` - Get all parsed headers as array
+- `getHeader(string $name): ?string` - Get specific header value (case-insensitive)
+- `getBody(): string` - Get request/response body
 
-Available event constants:
-- `Events::MESSAGE_BEGIN` - Message parsing started
-- `Events::URL` - URL data received (requests only)
-- `Events::STATUS` - Status line received (responses only)
-- `Events::HEADER_FIELD` - Header field received
-- `Events::HEADER_VALUE` - Header value received
-- `Events::HEADERS_COMPLETE` - All headers received
-- `Events::BODY` - Body data received
-- `Events::MESSAGE_COMPLETE` - Message parsing complete
+#### State Methods
+- `isComplete(): bool` - Check if parsing is complete
+- `getState(): int` - Get current parser state
+  - `Parser::STATE_INIT` - Initial state
+  - `Parser::STATE_PARSING` - Currently parsing
+  - `Parser::STATE_COMPLETE` - Parsing complete
+  - `Parser::STATE_ERROR` - Error occurred
 
 ### ErrorCodes Class
 
 HTTP parsing error constants (see llhttp documentation for complete list).
+
+### Exception Handling
+
+```php
+<?php
+
+use Llhttp\Parser;
+use Llhttp\ParseException;
+
+$parser = new Parser(Parser::TYPE_REQUEST);
+
+try {
+    $parser->parse("INVALID HTTP DATA");
+} catch (ParseException $e) {
+    echo "Parse error: " . $e->getMessage() . "\n";
+    echo "Error code: " . $e->getErrorCode() . "\n";
+}
+```
 
 ## Testing
 
 Run the test suite:
 
 ```bash
-# Basic functionality test
+# Test new API
+php test_new_api.php
+
+# Test basic functionality
 php test_basic.php
 
-# Simple HTTP parsing
-php test_simple.php
-
-# Header collection methods
+# Test header collection
 php test_getheaders.php
-php test_user_header_collection.php
 
-# Response parsing
+# Test response parsing
 php test_simple_response.php
-php test_json_response.php
-
-# Event system
-php test_header_events.php
-
-# State management
-php test_state.php
 ```
 
 ## Performance
 
-This extension leverages the llhttp C library, which is designed for high performance:
+This extension leverages the llhttp C library for maximum performance:
 
-- Zero-copy parsing where possible
-- Minimal memory allocations
-- Optimized state machine implementation
-- Used in production by Node.js
+- **Zero-copy parsing** where possible
+- **Minimal memory allocations**
+- **Optimized state machine implementation** 
+- **Direct C integration** without FFI overhead
+- **Used in production** by Node.js
+
+## Architecture
+
+The extension follows a **streamlined, object-oriented design**:
+
+- **Direct Method Calls**: Simple, intuitive API without complex event systems
+- **Automatic Data Collection**: Headers, URL, and body are collected automatically
+- **State Management**: Clean state tracking with reset/reuse capability
+- **Memory Efficient**: Proper cleanup and efficient string handling
 
 ## Contributing
 
@@ -267,39 +278,38 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 - [llhttp](https://github.com/nodejs/llhttp) - The underlying HTTP parser
-- [php-ffi-llhttp](https://github.com/queldev/php-ffi-llhttp) - Reference FFI implementation
 - PHP Extension Development documentation
 
 ## Changelog
 
-### v0.2.0 (Current)
+### v0.3.0 (Current) - API Unification
 
-- ✅ **Complete HTTP request/response parsing**
-- ✅ **Automatic header collection via getHeaders()**
-- ✅ **Event-driven callback system**
-- ✅ **State management (pause/resume/reset)**
-- ✅ **Fixed response parsing issues**
-- ✅ **Corrected llhttp type constants**
-- ✅ **Memory-safe header processing**
-- ✅ **Comprehensive test suite**
+- ✅ **Complete API redesign for simplicity**
+- ✅ **Replaced event system with direct method calls**
+- ✅ **New methods: `parse()`, `parseComplete()`, `getHeader()`, `getUrl()`, `getBody()`**
+- ✅ **Automatic URL and body collection**
+- ✅ **State management with `isComplete()` and `getState()`**
+- ✅ **Removed complex event-driven architecture**
+- ✅ **Streamlined build system**
+- ✅ **Memory management improvements**
+
+### v0.2.0
+
+- Complete HTTP request/response parsing
+- Event-driven callback system  
+- State management features
+- Comprehensive test suite
 
 ### v0.1.0
 
 - Initial implementation
 - Basic HTTP parsing framework
-- Event system foundation
-
-### Known Issues
-
-- Missing arginfo declarations cause PHP warnings (cosmetic issue)
-- Header collection uses simplified approach (last value wins for duplicates)
 
 ## Roadmap
 
 - [ ] Add arginfo declarations for better reflection support
-- [ ] Implement duplicate header handling (array values)
-- [ ] Performance benchmarks vs other parsers
-- [ ] Additional utility methods
-- [ ] Documentation improvements
+- [ ] Performance benchmarks vs other PHP HTTP parsers
+- [ ] Additional utility methods for URL parsing
+- [ ] Enhanced duplicate header handling
 - [ ] Package for PECL distribution
-- [ ] Add streaming/chunked parsing examples
+- [ ] Comprehensive documentation and examples

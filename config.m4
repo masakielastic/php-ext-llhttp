@@ -30,7 +30,6 @@ if test "$PHP_LLHTTP" != "no"; then
   PHP_NEW_EXTENSION(llhttp, 
     php_llhttp.c \
     llhttp_parser.c \
-    llhttp_events.c \
     llhttp_error.c \
     $LLHTTP_SOURCES,
     $ext_shared,, -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1)
