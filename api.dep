@@ -1,0 +1,2 @@
+api.lo: /home/masakielastic/projects/php-ext-llhttp/api.c \
+ /home/masakielastic/projects/php-ext-llhttp/llhttp.h
