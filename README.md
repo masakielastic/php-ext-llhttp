@@ -141,6 +141,30 @@ echo "URL: " . $parser->getUrl() . "\n";
 echo "Body: " . $parser->getBody() . "\n";
 ```
 
+### Auto-Detection with TYPE_BOTH
+
+```php
+<?php
+
+use Llhttp\Parser;
+
+// Create flexible parser that auto-detects request/response
+$parser = new Parser(Parser::TYPE_BOTH);
+
+// Can parse HTTP requests
+$request = "GET /api HTTP/1.1\r\nHost: example.com\r\n\r\n";
+$parser->parse($request);
+$parser->parseComplete();
+echo "Parsed as request: " . $parser->getMethodName() . "\n";
+
+// Create new instance for response (recommended for TYPE_BOTH)
+$responseParser = new Parser(Parser::TYPE_BOTH);
+$response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello";
+$responseParser->parse($response);
+$responseParser->parseComplete();
+echo "Parsed as response: " . $responseParser->getStatusCode() . "\n";
+```
+
 ### Parser State Management
 
 ```php
@@ -172,8 +196,9 @@ echo "New method: " . $parser->getMethodName() . "\n";
 
 #### Constructor
 - `new Parser(int $type)` - Create a new parser
-  - `Parser::TYPE_REQUEST` - Parse HTTP requests
-  - `Parser::TYPE_RESPONSE` - Parse HTTP responses
+  - `Parser::TYPE_BOTH` - Auto-detect request or response (flexible parsing)
+  - `Parser::TYPE_REQUEST` - Parse HTTP requests only
+  - `Parser::TYPE_RESPONSE` - Parse HTTP responses only
 
 #### Parsing Methods
 - `parse(string $data): void` - Parse HTTP data chunk

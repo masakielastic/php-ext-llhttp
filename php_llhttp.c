@@ -87,8 +87,8 @@ PHP_METHOD(LlhttpParser, __construct) {
         Z_PARAM_LONG(type)
     ZEND_PARSE_PARAMETERS_END();
     
-    if (type != LLHTTP_TYPE_REQUEST && type != LLHTTP_TYPE_RESPONSE) {
-        zend_throw_exception(llhttp_exception_ce, "Invalid parser type. Use Llhttp\\Parser::TYPE_REQUEST or Llhttp\\Parser::TYPE_RESPONSE", 0);
+    if (type != LLHTTP_TYPE_BOTH && type != LLHTTP_TYPE_REQUEST && type != LLHTTP_TYPE_RESPONSE) {
+        zend_throw_exception(llhttp_exception_ce, "Invalid parser type. Use Llhttp\\Parser::TYPE_BOTH, Llhttp\\Parser::TYPE_REQUEST or Llhttp\\Parser::TYPE_RESPONSE", 0);
         RETURN_THROWS();
     }
     
@@ -474,6 +474,7 @@ PHP_MINIT_FUNCTION(llhttp) {
     llhttp_parser_object_handlers.free_obj = llhttp_parser_object_free;
     
     /* Register constants */
+    zend_declare_class_constant_long(llhttp_parser_ce, "TYPE_BOTH", sizeof("TYPE_BOTH")-1, LLHTTP_TYPE_BOTH);
     zend_declare_class_constant_long(llhttp_parser_ce, "TYPE_REQUEST", sizeof("TYPE_REQUEST")-1, LLHTTP_TYPE_REQUEST);
     zend_declare_class_constant_long(llhttp_parser_ce, "TYPE_RESPONSE", sizeof("TYPE_RESPONSE")-1, LLHTTP_TYPE_RESPONSE);
     
