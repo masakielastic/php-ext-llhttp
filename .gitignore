@@ -1,0 +1,75 @@
+# PHP Extension Build Files
+*.so
+*.a
+*.o
+*.lo
+*.la
+.libs/
+autom4te.cache/
+config.h
+config.log
+config.nice
+config.status
+configure
+configure.ac
+configure.in
+aclocal.m4
+Makefile
+Makefile.global
+Makefile.objects
+build/
+modules/
+run-tests.php
+tests/*.diff
+tests/*.exp
+tests/*.log
+tests/*.out
+tests/*.php
+tests/*.sh
+
+# Autotools generated files
+install-sh
+ltmain.sh
+missing
+mkinstalldirs
+config.guess
+config.sub
+libtool
+
+# PHP specific
+.deps
+.dirstamp
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Temporary and backup files
+*.bak
+*.tmp
+*.temp
+*.orig
+*.rej
+
+# Log files
+*.log
+
+# Package manager
+vendor/
+composer.lock
+node_modules/
+package-lock.json
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
