@@ -67,9 +67,9 @@ extern zend_class_entry *llhttp_exception_ce;
 /* Object handlers */
 extern zend_object_handlers llhttp_parser_object_handlers;
 
-/* Parser type constants */
-#define LLHTTP_TYPE_REQUEST  0
-#define LLHTTP_TYPE_RESPONSE 1
+/* Parser type constants - must match llhttp library values */
+#define LLHTTP_TYPE_REQUEST  1  /* HTTP_REQUEST */
+#define LLHTTP_TYPE_RESPONSE 2  /* HTTP_RESPONSE */
 
 /* Event name constants */
 #define LLHTTP_EVENT_MESSAGE_BEGIN     "messageBegin"

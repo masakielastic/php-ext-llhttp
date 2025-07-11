@@ -28,34 +28,17 @@ void llhttp_call_user_callback(llhttp_parser_object *parser_obj, const char *eve
 
 /* Header management functions */
 void llhttp_add_header(llhttp_parser_object *parser_obj, zend_string *field, zend_string *value) {
-    zval *existing;
     zend_string *lower_field;
+    zval header_val;
     
     if (!parser_obj || !parser_obj->headers || !field || !value) {
         return;
     }
     
+    /* Simple approach: last header wins, no duplicate handling */
     lower_field = zend_string_tolower(field);
-    existing = zend_hash_find(parser_obj->headers, lower_field);
-    
-    if (existing) {
-        /* Convert to array if needed */
-        if (Z_TYPE_P(existing) == IS_STRING) {
-            zval array_val;
-            array_init(&array_val);
-            Z_TRY_ADDREF_P(existing);
-            add_next_index_zval(&array_val, existing);
-            add_next_index_str(&array_val, zend_string_copy(value));
-            zend_hash_update(parser_obj->headers, lower_field, &array_val);
-        } else if (Z_TYPE_P(existing) == IS_ARRAY) {
-            add_next_index_str(existing, zend_string_copy(value));
-        }
-    } else {
-        zval header_val;
-        ZVAL_STR_COPY(&header_val, value);
-        zend_hash_update(parser_obj->headers, lower_field, &header_val);
-    }
-    
+    ZVAL_STR_COPY(&header_val, value);
+    zend_hash_update(parser_obj->headers, lower_field, &header_val);
     zend_string_release(lower_field);
 }
 
@@ -100,7 +83,16 @@ int llhttp_on_url_cb(llhttp_t *parser, const char *at, size_t length) {
     return 0;
 }
 
-/* Note: llhttp doesn't have on_status callback, status information is available through parser state */
+int llhttp_on_status_cb(llhttp_t *parser, const char *at, size_t length) {
+    llhttp_parser_object *parser_obj = (llhttp_parser_object *)parser->data;
+    zval args[1];
+    
+    ZVAL_STRINGL(&args[0], at, length);
+    llhttp_call_user_callback(parser_obj, LLHTTP_EVENT_STATUS, args, 1);
+    zval_ptr_dtor(&args[0]);
+    
+    return 0;
+}
 
 int llhttp_on_header_field_cb(llhttp_t *parser, const char *at, size_t length) {
     llhttp_parser_object *parser_obj = (llhttp_parser_object *)parser->data;
@@ -110,7 +102,13 @@ int llhttp_on_header_field_cb(llhttp_t *parser, const char *at, size_t length) {
         return 0;
     }
     
-    /* Only emit the event for now */
+    /* Store current header field for getHeaders() */
+    if (parser_obj->current_header_field) {
+        zend_string_release(parser_obj->current_header_field);
+    }
+    parser_obj->current_header_field = zend_string_init(at, length, 0);
+    
+    /* Emit event */
     ZVAL_STRINGL(&args[0], at, length);
     llhttp_call_user_callback(parser_obj, LLHTTP_EVENT_HEADER_FIELD, args, 1);
     zval_ptr_dtor(&args[0]);
@@ -126,7 +124,23 @@ int llhttp_on_header_value_cb(llhttp_t *parser, const char *at, size_t length) {
         return 0;
     }
     
-    /* Only emit the event for now */
+    /* Store header value and add to collection if we have a field */
+    if (parser_obj->current_header_field) {
+        zend_string *value = zend_string_init(at, length, 0);
+        zend_string *lower_field = zend_string_tolower(parser_obj->current_header_field);
+        
+        /* Simple header storage - last value wins */
+        zval header_val;
+        ZVAL_STR_COPY(&header_val, value);
+        zend_hash_update(parser_obj->headers, lower_field, &header_val);
+        
+        zend_string_release(value);
+        zend_string_release(lower_field);
+        zend_string_release(parser_obj->current_header_field);
+        parser_obj->current_header_field = NULL;
+    }
+    
+    /* Emit event */
     ZVAL_STRINGL(&args[0], at, length);
     llhttp_call_user_callback(parser_obj, LLHTTP_EVENT_HEADER_VALUE, args, 1);
     zval_ptr_dtor(&args[0]);
@@ -140,9 +154,6 @@ int llhttp_on_headers_complete_cb(llhttp_t *parser) {
     if (!parser_obj) {
         return 0;
     }
-    
-    /* Finalize the last header */
-    llhttp_finalize_current_header(parser_obj);
     
     /* For response parsers, emit STATUS event with status code */
     if (parser_obj->type == LLHTTP_TYPE_RESPONSE) {

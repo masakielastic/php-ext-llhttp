@@ -102,8 +102,7 @@ PHP_METHOD(LlhttpParser, __construct) {
     /* Set up callbacks */
     intern->settings.on_message_begin = llhttp_on_message_begin_cb;
     intern->settings.on_url = llhttp_on_url_cb;
-    /* Note: llhttp doesn't have on_status callback, status is extracted from parser state */
-    /* Enable header callbacks with event-only mode for now */
+    intern->settings.on_status = llhttp_on_status_cb;
     intern->settings.on_header_field = llhttp_on_header_field_cb;
     intern->settings.on_header_value = llhttp_on_header_value_cb;
     intern->settings.on_headers_complete = llhttp_on_headers_complete_cb;
@@ -340,12 +339,14 @@ PHP_METHOD(LlhttpParser, getHeaders) {
     /* Return copy of headers array */
     array_init(return_value);
     
-    zend_string *key;
-    zval *val;
-    ZEND_HASH_FOREACH_STR_KEY_VAL(intern->headers, key, val) {
-        Z_TRY_ADDREF_P(val);
-        zend_hash_update(Z_ARRVAL_P(return_value), key, val);
-    } ZEND_HASH_FOREACH_END();
+    if (intern->headers) {
+        zend_string *key;
+        zval *val;
+        ZEND_HASH_FOREACH_STR_KEY_VAL(intern->headers, key, val) {
+            Z_TRY_ADDREF_P(val);
+            zend_hash_update(Z_ARRVAL_P(return_value), key, val);
+        } ZEND_HASH_FOREACH_END();
+    }
 }
 
 /* Method entries for Parser class */

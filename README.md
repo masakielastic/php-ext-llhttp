@@ -53,39 +53,50 @@ use Llhttp\Events;
 // Create a request parser
 $parser = new Parser(Parser::TYPE_REQUEST);
 
-// Set up event handlers
-$parser->on(Events::MESSAGE_BEGIN, function() {
-    echo "Parsing started\n";
+// Option 1: Using getHeaders() method (automatic collection)
+$request = "GET /api/users HTTP/1.1\r\n" .
+           "Host: example.com\r\n" .
+           "Content-Type: application/json\r\n" .
+           "Authorization: Bearer token123\r\n\r\n";
+
+$parser->execute($request);
+$parser->finish();
+
+// Get parsed information
+echo "Method: " . $parser->getMethodName() . "\n";
+echo "HTTP Version: " . $parser->getHttpMajor() . "." . $parser->getHttpMinor() . "\n";
+
+$headers = $parser->getHeaders();
+foreach ($headers as $name => $value) {
+    echo "Header: $name = $value\n";
+}
+```
+
+### Event-Driven Header Collection
+
+```php
+<?php
+
+// Option 2: Using events for custom processing
+$parser = new Parser(Parser::TYPE_REQUEST);
+
+$headers = [];
+$currentField = null;
+
+$parser->on(Events::HEADER_FIELD, function($field) use (&$currentField) {
+    $currentField = $field;
 });
 
-$parser->on(Events::URL, function($url) {
-    echo "URL: $url\n";
-});
-
-$parser->on(Events::HEADER_FIELD, function($field) {
-    echo "Header field: $field\n";
-});
-
-$parser->on(Events::HEADER_VALUE, function($value) {
-    echo "Header value: $value\n";
-});
-
-$parser->on(Events::HEADERS_COMPLETE, function() {
-    echo "Headers complete\n";
+$parser->on(Events::HEADER_VALUE, function($value) use (&$headers, &$currentField) {
+    if ($currentField !== null) {
+        $headers[strtolower($currentField)] = $value;
+        $currentField = null;
+    }
 });
 
 $parser->on(Events::BODY, function($data) {
     echo "Body chunk: $data\n";
 });
-
-$parser->on(Events::MESSAGE_COMPLETE, function() {
-    echo "Message complete\n";
-});
-
-// Parse HTTP request
-$request = "GET /path?query=value HTTP/1.1\r\n" .
-           "Host: example.com\r\n" .
-           "Content-Length: 0\r\n\r\n";
 
 $parser->execute($request);
 $parser->finish();
@@ -102,23 +113,37 @@ use Llhttp\Events;
 // Create a response parser
 $parser = new Parser(Parser::TYPE_RESPONSE);
 
+$body = '';
+
 $parser->on(Events::STATUS, function($status) {
-    echo "Status: $status\n";
+    echo "Status text: $status\n";
 });
 
-$parser->on(Events::HEADERS_COMPLETE, function() use ($parser) {
-    echo "Status Code: " . $parser->getStatusCode() . "\n";
-    echo "HTTP Version: " . $parser->getHttpMajor() . "." . $parser->getHttpMinor() . "\n";
+$parser->on(Events::BODY, function($chunk) use (&$body) {
+    $body .= $chunk;
 });
 
 // Parse HTTP response
 $response = "HTTP/1.1 200 OK\r\n" .
-            "Content-Type: text/html\r\n" .
-            "Content-Length: 13\r\n\r\n" .
-            "Hello, World!";
+            "Content-Type: application/json\r\n" .
+            "Content-Length: 27\r\n" .
+            "Server: nginx/1.20.1\r\n\r\n" .
+            '{"message": "Hello, World!"}';
 
 $parser->execute($response);
 $parser->finish();
+
+// Get response information
+echo "Status Code: " . $parser->getStatusCode() . "\n";
+echo "HTTP Version: " . $parser->getHttpMajor() . "." . $parser->getHttpMinor() . "\n";
+echo "Keep-Alive: " . ($parser->shouldKeepAlive() ? 'Yes' : 'No') . "\n";
+
+$headers = $parser->getHeaders();
+foreach ($headers as $name => $value) {
+    echo "Header: $name = $value\n";
+}
+
+echo "Body: $body\n";
 ```
 
 ### State Management
@@ -197,16 +222,24 @@ Run the test suite:
 
 ```bash
 # Basic functionality test
+php test_basic.php
+
+# Simple HTTP parsing
 php test_simple.php
 
-# Header parsing test
+# Header collection methods
+php test_getheaders.php
+php test_user_header_collection.php
+
+# Response parsing
+php test_simple_response.php
+php test_json_response.php
+
+# Event system
 php test_header_events.php
 
-# State management test
+# State management
 php test_state.php
-
-# Response parsing test
-php test_simple_response.php
 ```
 
 ## Performance
@@ -239,27 +272,34 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Changelog
 
-### v0.1.0 (Current)
+### v0.2.0 (Current)
+
+- ✅ **Complete HTTP request/response parsing**
+- ✅ **Automatic header collection via getHeaders()**
+- ✅ **Event-driven callback system**
+- ✅ **State management (pause/resume/reset)**
+- ✅ **Fixed response parsing issues**
+- ✅ **Corrected llhttp type constants**
+- ✅ **Memory-safe header processing**
+- ✅ **Comprehensive test suite**
+
+### v0.1.0
 
 - Initial implementation
-- Basic HTTP request/response parsing
-- Event-driven callback system
-- State management (pause/resume/reset)
-- Header field and value events
-- Comprehensive test suite
+- Basic HTTP parsing framework
+- Event system foundation
 
 ### Known Issues
 
-- Response parsing may show "Invalid method" error in some cases
-- Header collection system uses event-only approach for memory safety
-- Missing arginfo declarations cause PHP warnings
+- Missing arginfo declarations cause PHP warnings (cosmetic issue)
+- Header collection uses simplified approach (last value wins for duplicates)
 
 ## Roadmap
 
-- [ ] Fix response parsing issues
-- [ ] Implement automatic header collection
-- [ ] Add arginfo declarations
-- [ ] Performance benchmarks
+- [ ] Add arginfo declarations for better reflection support
+- [ ] Implement duplicate header handling (array values)
+- [ ] Performance benchmarks vs other parsers
+- [ ] Additional utility methods
 - [ ] Documentation improvements
-- [ ] Additional test coverage
-- [ ] Error handling enhancements
+- [ ] Package for PECL distribution
+- [ ] Add streaming/chunked parsing examples
