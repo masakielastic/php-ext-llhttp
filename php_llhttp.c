@@ -379,25 +379,80 @@ void llhttp_append_body(llhttp_parser_object *parser_obj, const char *at, size_t
     }
 }
 
+/* Arginfo declarations */
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_construct, 0, 0, 1)
+    ZEND_ARG_TYPE_INFO(0, type, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_parse, 0, 0, 1)
+    ZEND_ARG_TYPE_INFO(0, data, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_parseComplete, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_reset, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_getHttpMajor, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_getHttpMinor, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_getMethod, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_getMethodName, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_getStatusCode, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_getUrl, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_getHeaders, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_getHeader, 0, 0, 1)
+    ZEND_ARG_TYPE_INFO(0, name, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_getBody, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_shouldKeepAlive, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_messageNeedsEof, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_isComplete, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_parser_getState, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
 /* Method entries for Parser class */
 const zend_function_entry llhttp_parser_methods[] = {
-    PHP_ME(LlhttpParser, __construct,       NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, parse,             NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, parseComplete,     NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, reset,             NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, getHttpMajor,      NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, getHttpMinor,      NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, getMethod,         NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, getMethodName,     NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, getStatusCode,     NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, getUrl,            NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, getHeaders,        NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, getHeader,         NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, getBody,           NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, shouldKeepAlive,   NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, messageNeedsEof,   NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, isComplete,        NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(LlhttpParser, getState,          NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, __construct,       arginfo_llhttp_parser_construct, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, parse,             arginfo_llhttp_parser_parse, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, parseComplete,     arginfo_llhttp_parser_parseComplete, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, reset,             arginfo_llhttp_parser_reset, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getHttpMajor,      arginfo_llhttp_parser_getHttpMajor, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getHttpMinor,      arginfo_llhttp_parser_getHttpMinor, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getMethod,         arginfo_llhttp_parser_getMethod, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getMethodName,     arginfo_llhttp_parser_getMethodName, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getStatusCode,     arginfo_llhttp_parser_getStatusCode, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getUrl,            arginfo_llhttp_parser_getUrl, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getHeaders,        arginfo_llhttp_parser_getHeaders, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getHeader,         arginfo_llhttp_parser_getHeader, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getBody,           arginfo_llhttp_parser_getBody, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, shouldKeepAlive,   arginfo_llhttp_parser_shouldKeepAlive, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, messageNeedsEof,   arginfo_llhttp_parser_messageNeedsEof, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, isComplete,        arginfo_llhttp_parser_isComplete, ZEND_ACC_PUBLIC)
+    PHP_ME(LlhttpParser, getState,          arginfo_llhttp_parser_getState, ZEND_ACC_PUBLIC)
     PHP_FE_END
 };
 

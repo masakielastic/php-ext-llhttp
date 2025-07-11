@@ -78,9 +78,14 @@ PHP_METHOD(LlhttpErrorCodes, getMessage) {
     RETURN_STRING(message);
 }
 
+/* Arginfo for ErrorCodes */
+ZEND_BEGIN_ARG_INFO_EX(arginfo_llhttp_error_codes_getMessage, 0, 0, 1)
+    ZEND_ARG_TYPE_INFO(0, code, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
 /* Method entries for ErrorCodes class */
 const zend_function_entry llhttp_error_codes_methods[] = {
-    PHP_ME(LlhttpErrorCodes, getMessage, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
+    PHP_ME(LlhttpErrorCodes, getMessage, arginfo_llhttp_error_codes_getMessage, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
     PHP_FE_END
 };
 

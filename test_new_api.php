@@ -7,12 +7,13 @@ try {
     echo "1. Testing request parsing...\n";
     $parser = new Llhttp\Parser(Llhttp\Parser::TYPE_REQUEST);
     
+    $body = '{"test": true}';
     $request = "GET /test?param=value HTTP/1.1\r\n" .
                "Host: example.com\r\n" .
                "Content-Type: application/json\r\n" .
-               "Content-Length: 13\r\n" .
+               "Content-Length: " . strlen($body) . "\r\n" .
                "\r\n" .
-               '{"test": true}';
+               $body;
     
     $parser->parse($request);
     $parser->parseComplete();
@@ -30,12 +31,13 @@ try {
     echo "\n2. Testing response parsing...\n";
     $parser2 = new Llhttp\Parser(Llhttp\Parser::TYPE_RESPONSE);
     
+    $responseBody = '{"message": "Hello, World!"}';
     $response = "HTTP/1.1 200 OK\r\n" .
                 "Content-Type: application/json\r\n" .
-                "Content-Length: 27\r\n" .
+                "Content-Length: " . strlen($responseBody) . "\r\n" .
                 "Server: nginx/1.20.1\r\n" .
                 "\r\n" .
-                '{"message": "Hello, World!"}';
+                $responseBody;
     
     $parser2->parse($response);
     $parser2->parseComplete();
