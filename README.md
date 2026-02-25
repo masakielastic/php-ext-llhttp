@@ -295,15 +295,6 @@ The extension follows a **streamlined, object-oriented design**:
 - **State Management**: Clean state tracking with reset/reuse capability
 - **Memory Efficient**: Proper cleanup and efficient string handling
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
-
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
@@ -312,33 +303,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - [llhttp](https://github.com/nodejs/llhttp) - The underlying HTTP parser
 - PHP Extension Development documentation
-
-## Changelog
-
-### v0.3.0 (Current) - API Unification
-
-- ✅ **Complete API redesign for simplicity**
-- ✅ **Replaced event system with direct method calls**
-- ✅ **New methods: `parse()`, `parseComplete()`, `getHeader()`, `getUrl()`, `getBody()`**
-- ✅ **Automatic URL and body collection**
-- ✅ **State management with `isComplete()` and `getState()`**
-- ✅ **Removed complex event-driven architecture**
-- ✅ **Streamlined build system**
-- ✅ **Memory management improvements**
-
-### v0.2.0
-
-- Complete HTTP request/response parsing
-- Event-driven callback system  
-- State management features
-- Comprehensive test suite
-
-### v0.1.0
-
-- Initial implementation
-- Basic HTTP parsing framework
-
-## Roadmap
 
 - [ ] Add arginfo declarations for better reflection support
 - [ ] Performance benchmarks vs other PHP HTTP parsers
