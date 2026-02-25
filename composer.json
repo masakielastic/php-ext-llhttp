@@ -1,0 +1,13 @@
+{
+    "name": "masakielastic/llhttp",
+    "description": "PHP extension for llhttp - high-performance HTTP parser",
+    "type": "php-ext",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.1"
+    },
+    "php-ext": {
+        "extension-name": "llhttp",
+        "build-path": "ext"
+    }
+}
