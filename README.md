@@ -21,6 +21,14 @@ A PHP extension that provides high-performance HTTP parsing using the [llhttp](h
 - C compiler (gcc/clang)
 - autotools (autoconf, automake, libtool)
 
+### Install with PIE
+
+[PIE](https://github.com/php/pie) (PHP Installer for Extensions) is the recommended installation method.
+
+```bash
+pie install masakielastic/llhttp
+```
+
 ### Build from Source
 
 ```bash
