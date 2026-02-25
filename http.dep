@@ -1,2 +1,0 @@
-http.lo: /home/masakielastic/projects/php-ext-llhttp/http.c \
- /home/masakielastic/projects/php-ext-llhttp/llhttp.h

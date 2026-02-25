@@ -39,6 +39,7 @@ libtool
 # PHP specific
 .deps
 .dirstamp
+*.dep
 
 # IDE and Editor files
 .vscode/
